@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VerifAI - Fake Review Detection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #F5F1E8 0%, #E8DCC8 100%);
+            min-height: 100vh;
+            padding-top: 70px;
+        }
+        
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 0 40px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 1000;
+        }
+        
+        .nav-brand {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: #8B7355;
+            letter-spacing: -0.5px;
+        }
+        
+        .nav-menu {
+            display: flex;
+            gap: 30px;
+            list-style: none;
+        }
+        
+        .nav-menu a {
+            text-decoration: none;
+            color: #6B5D52;
+            font-size: 0.95em;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        
+        .nav-menu a:hover {
+            color: #C9A875;
+        }
+        
+        .main-content {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: calc(100vh - 70px);
+            padding: 40px 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #8B7355;
+            font-size: 2.5em;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+        
+        .header p {
+            color: #6B5D52;
+            font-size: 1.1em;
+            line-height: 1.5;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 1.05em;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 1em;
+            resize: vertical;
+            min-height: 120px;
+            transition: border-color 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #C9A875;
+        }
+        
+        button {
+            width: 100%;
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #C9A875 0%, #B8956A 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            letter-spacing: 0.5px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(201, 168, 117, 0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .result.show {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .result.fake {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+        }
+        
+        .result.genuine {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+        }
+        
+        .result h2 {
+            margin-bottom: 15px;
+            font-size: 1.8em;
+        }
+        
+        .result.fake h2 {
+            color: #f44336;
+        }
+        
+        .result.genuine h2 {
+            color: #4caf50;
+        }
+        
+        .confidence-bar {
+            margin: 20px 0;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            height: 30px;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.9em;
+            transition: width 0.5s ease;
+        }
+        
+        .fake .confidence-fill {
+            background: #f44336;
+        }
+        
+        .genuine .confidence-fill {
+            background: #4caf50;
+        }
+        
+        .probabilities {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .prob-item {
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .prob-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .prob-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #333;
+        }
+        
+        .signals {
+            margin-top: 20px;
+        }
+        
+        .signals h3 {
+            font-size: 1.1em;
+            margin-bottom: 12px;
+            color: #333;
+        }
+        
+        .signal-item {
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-size: 0.95em;
+            display: flex;
+            align-items: center;
+        }
+        
+        .signal-item.bad {
+            background: #ffcdd2;
+            color: #c62828;
+        }
+        
+        .signal-item.good {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+        
+        .signal-item::before {
+            content: '●';
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+        
+        .stats {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .stats h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .stat-box {
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: #C9A875;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            color: #C9A875;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #C9A875;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .error {
+            display: none;
+            padding: 15px;
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+            border-radius: 4px;
+            color: #c62828;
+            margin-top: 20px;
+        }
+        
+        .error.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-brand">VerifAI</div>
+        <ul class="nav-menu">
+            <li><a href="#home">Home</a></li>
+            <li><a href="#how">How It Works</a></li>
+            <li><a href="#about">About</a></li>
+            <li><a href="#contact">Contact</a></li>
+        </ul>
+    </nav>
+    
+    <div class="main-content">
+    <div class="container">
+        <div class="header">
+            <h1>VerifAI</h1>
+            <p>Your Trusted AI Assistant for Spotting Fake Reviews</p>
+            <p style="font-size: 0.95em; color: #999; margin-top: 10px;">
+                Ever wondered if that 5-star review is real? We help you tell authentic feedback from the fake stuff.
+            </p>
+        </div>
+        
+        <form id="reviewForm">
+            <div class="form-group">
+                <label for="review">📝 What's the review you want to check?</label>
+                <textarea 
+                    id="review" 
+                    placeholder="Just paste any product review here – Amazon, eBay, Etsy, anywhere! We'll analyze it and tell you what we think."
+                    required
+                    minlength="5"
+                    maxlength="5000"
+                ></textarea>
+                <small style="color: #999; font-size: 0.85em; margin-top: 4px; display: block;">
+                    <span id="charCount">0</span>/5000 characters • Minimum 5 characters
+                </small>
+            </div>
+            
+            <button type="submit">✨ Check This Review</button>
+        </form>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div> Let me take a closer look...
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="result" id="result">
+            <h2 id="resultLabel"></h2>
+            <p id="resultMessage" style="color: #666; margin-bottom: 15px; font-size: 1.05em;"></p>
+            <div class="confidence-bar">
+                <div class="confidence-fill" id="confidenceFill"></div>
+            </div>
+            <div class="probabilities">
+                <div class="prob-item">
+                    <div class="prob-label">Likely to be Fake</div>
+                    <div class="prob-value" id="fakeProb">0%</div>
+                </div>
+                <div class="prob-item">
+                    <div class="prob-label">Likely to be Genuine</div>
+                    <div class="prob-value" id="genuineProb">0%</div>
+                </div>
+            </div>
+            <div class="signals" id="signals"></div>
+        </div>
+        
+        <div class="stats" id="statsContainer" style="display: none;">
+            <h3>📊 By the Numbers</h3>
+            <p style="color: #666; font-size: 0.95em; margin-bottom: 15px;">
+                Here's what we've spotted so far with your reviews.
+            </p>
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Reviews Checked</div>
+                    <div class="stat-value" id="totalPredictions">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Potentially Fake</div>
+                    <div class="stat-value" id="fakePredictions">0</div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('reviewForm');
+        const reviewTextarea = document.getElementById('review');
+        const charCount = document.getElementById('charCount');
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        const result = document.getElementById('result');
+        const resultLabel = document.getElementById('resultLabel');
+        const confidenceFill = document.getElementById('confidenceFill');
+        const fakeProb = document.getElementById('fakeProb');
+        const genuineProb = document.getElementById('genuineProb');
+        const signals = document.getElementById('signals');
+        const statsContainer = document.getElementById('statsContainer');
+        
+        // Update character count
+        reviewTextarea.addEventListener('input', () => {
+            charCount.textContent = reviewTextarea.value.length;
+        });
+        
+        // Handle form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const review = reviewTextarea.value.trim();
+            
+            if (!review || review.length < 5) {
+                showError('Review too short');
+                return;
+            }
+            
+            if (review.length > 5000) {
+                showError('Review too long');
+                return;
+            }
+            
+            loading.classList.add('show');
+            error.classList.remove('show');
+            result.classList.remove('show');
+            
+            try {
+                const response = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ review }),
+                });
+                
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Prediction failed');
+                }
+                
+                const data = await response.json();
+                displayResult(data);
+                loadStats();
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                loading.classList.remove('show');
+            }
+        });
+        
+        function displayResult(data) {
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+            
+            const isFake = data.label === 'Fake';
+            result.className = `result show ${isFake ? 'fake' : 'genuine'}`;
+            
+            // Create personalized messages
+            const messages = {
+                fakeHigh: "🚩 This looks like a fake review. Something doesn't add up here.",
+                fakeMedium: "⚠️ This review has some red flags. Be a bit skeptical.",
+                fakeConfused: "🤔 We're unsure about this one. Proceed with caution.",
+                genuineHigh: "✅ This looks authentic! We're pretty confident it's real.",
+                genuineMedium: "👍 This seems like a genuine review. Most things check out.",
+                genuineConfused: "❓ Hard to tell on this one. Could go either way."
+            };
+            
+            let messageKey;
+            const confidence = data.confidence;
+            
+            if (isFake) {
+                if (confidence >= 80) messageKey = 'fakeHigh';
+                else if (confidence >= 60) messageKey = 'fakeMedium';
+                else messageKey = 'fakeConfused';
+                resultLabel.textContent = `⚠️ Likely Fake`;
+            } else {
+                if (confidence >= 80) messageKey = 'genuineHigh';
+                else if (confidence >= 60) messageKey = 'genuineMedium';
+                else messageKey = 'genuineConfused';
+                resultLabel.textContent = `✅ Looks Genuine`;
+            }
+            
+            document.getElementById('resultMessage').textContent = messages[messageKey];
+            
+            const confidence_pct = Math.round(data.confidence);
+            confidenceFill.style.width = confidence_pct + '%';
+            confidenceFill.textContent = confidence_pct + '%';
+            
+            fakeProb.textContent = Math.round(data.fake_prob) + '%';
+            genuineProb.textContent = Math.round(data.genuine_prob) + '%';
+            
+            // Display signals with friendly descriptions
+            signals.innerHTML = '';
+            if (data.signals && data.signals.length > 0) {
+                const signalsHtml = '<h3 style="margin-top: 20px; margin-bottom: 12px; color: #333;">🔍 What We Found:</h3>' +
+                    data.signals.map(signal => {
+                        const emoji = signal.type === 'bad' ? '⚠️' : '✓';
+                        return `<div class="signal-item ${signal.type}">${emoji} ${signal.text}</div>`
+                    }).join('');
+                signals.innerHTML = signalsHtml;
+            } else {
+                signals.innerHTML = '<p style="margin-top: 20px; color: #666;">No specific signals detected.</p>';
+            }
+        }
+        
+        function showError(message) {
+            // Make error messages more friendly
+            const friendlyMessages = {
+                'Review too short': "Oops! We need at least 5 characters. Add a bit more detail!",
+                'Review too long': "Whoa, that's a lot! Keep it under 5000 characters please.",
+                'Missing review field': "Don't forget to paste a review!"
+            };
+            
+            let displayMessage = friendlyMessages[message] || message;
+            error.textContent = '😅 ' + displayMessage;
+            error.classList.add('show');
+        }
+        
+        function loadStats() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('totalPredictions').textContent = data.total || 0;
+                    document.getElementById('fakePredictions').textContent = data.fake || 0;
+                    statsContainer.style.display = 'block';
+                })
+                .catch(err => console.error('Failed to load stats:', err));
+        }
+        
+        // Load stats on page load
+        window.addEventListener('load', loadStats);
+    </script>
+</body>
+</html>
